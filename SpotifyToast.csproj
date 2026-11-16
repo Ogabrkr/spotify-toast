@@ -1,0 +1,35 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SpotifyToast</AssemblyName>
+    <RootNamespace>SpotifyToast</RootNamespace>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>1.2.1</Version>
+    <Product>Spotify Toast</Product>
+    <AssemblyTitle>Spotify Toast</AssemblyTitle>
+    <Description>Mostra uma notificação com capa e nome da música quando o Spotify troca de faixa.</Description>
+    <Company>Gabriel Kono</Company>
+    <Copyright>Copyright © 2026 Gabriel Kono</Copyright>
+    <NeutralLanguage>pt-BR</NeutralLanguage>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <!-- leveza: GC de estação sem thread de fundo, sem dados de cultura -->
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <UseSystemResourceKeys>true</UseSystemResourceKeys>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- a projeção WinRT é enorme e o app usa 3 classes dela: não vale pré-compilar -->
+    <PublishReadyToRunExclude Include="Microsoft.Windows.SDK.NET.dll" />
+  </ItemGroup>
+</Project>
+
