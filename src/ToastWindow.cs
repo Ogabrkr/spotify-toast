@@ -21,8 +21,8 @@ internal sealed class ToastWindow : Form
     Phase phase = Phase.Idle;
     double p, lastTick, holdUntil, holdSeconds = 5;
 
-    // geometria em pixels físicos
-    float s = 1;
+    // geometria em pixels físicos: dpi = escala do monitor; s = dpi × tamanho escolhido
+    float dpi = 1, s = 1;
     int cardW, cardH;
     Point shown, hidden;
 
@@ -33,6 +33,7 @@ internal sealed class ToastWindow : Form
     // último conteúdo, para redesenhar quando o mouse entra/sai (o vidro é "interactive")
     TrackInfo? track;
     bool glassOn, darkOn, hovered;
+    string nowPlaying = "";
 
     public bool IsShowing => phase != Phase.Idle;
 
@@ -79,7 +80,7 @@ internal sealed class ToastWindow : Form
         // cópia própria: o TrayApp libera a faixa anterior quando chega outra
         var mine = new TrackInfo(t.Title, t.Artist, t.Album, t.Cover != null ? new Bitmap(t.Cover) : null);
         track?.Dispose();
-        track = mine; glassOn = st.Glass; darkOn = dark;
+        track = mine; glassOn = st.Glass; darkOn = dark; nowPlaying = st.Text.NowPlaying;
 
         Native.SetBackdrop(Handle, st.Glass, dark);
         if (!RenderContent(mine, st.Glass, dark))
@@ -112,10 +113,11 @@ internal sealed class ToastWindow : Form
         var scr = Screen.PrimaryScreen ?? Screen.AllScreens[0];
         var mon = scr.Bounds;
         var wa = scr.WorkingArea;
-        s = Native.ScaleFor(mon);
+        dpi = Native.ScaleFor(mon);
+        s = dpi * st.SizeFactor;
 
         cardW = R(372); cardH = R(88);
-        int margin = R(18);
+        int margin = (int)Math.Round(18 * dpi);
         bool right = st.Position == "right";
         shown = new Point(right ? wa.Right - margin - cardW : wa.Left + margin, wa.Top + margin);
 
@@ -161,7 +163,7 @@ internal sealed class ToastWindow : Form
     /// </summary>
     void DrawGlass(Graphics g, RectangleF card, bool dark, Color? reflect)
     {
-        float radius = R(GlassRadius);
+        float radius = GlassRadius * dpi; // o canto do Windows não muda com o tamanho do cartão
         float hair = Math.Max(1f, s);
         var grad = RectangleF.Inflate(card, 1, 1);
         using var body = Fx.RoundedRect(card, radius);
@@ -304,20 +306,20 @@ internal sealed class ToastWindow : Form
         using (var green = new SolidBrush(Color.FromArgb(30, 215, 96)))
             g.FillEllipse(green, tx, y + (lh - dot) / 2, dot, dot);
         using (var b = new SolidBrush(tertiary))
-            g.DrawString("TOCANDO AGORA", labelFont, b, new RectangleF(tx + dot + R(6), y, tw - dot - R(6), lh), sf);
+            g.DrawString(nowPlaying, labelFont, b, new RectangleF(tx + dot + R(6), y, tw - dot - R(6), lh), sf);
         y += lh + gap;
         if (dark)
         {
             // contraste sobre qualquer fundo: texto no vidro precisa continuar legível
             using var shadow = new SolidBrush(Color.FromArgb(90, 0, 0, 0));
-            g.DrawString(t.Title, titleFont, shadow, new RectangleF(tx, y + R(1), tw, th), sf);
+            TextLine.Draw(g, t.Title, titleFont, shadow, tx, y + R(1), tw);
         }
         using (var b = new SolidBrush(primary))
-            g.DrawString(t.Title, titleFont, b, new RectangleF(tx, y, tw, th), sf);
+            TextLine.Draw(g, t.Title, titleFont, b, tx, y, tw);
         y += th;
         string sub = string.IsNullOrWhiteSpace(t.Artist) ? t.Album : t.Artist;
         using (var b = new SolidBrush(secondary))
-            g.DrawString(sub, artistFont, b, new RectangleF(tx, y, tw, ah), sf);
+            TextLine.Draw(g, sub, artistFont, b, tx, y, tw);
     }
 
     bool EnsureSurface()

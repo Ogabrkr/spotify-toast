@@ -27,6 +27,9 @@ borda da tela e some sozinho. Leve, discreto e sem atrapalhar seus jogos.
 - 🎵 **Popup automático** a cada música nova no Spotify, com capa, título e artista
 - 🫧 **Liquid Glass**: vidro desfocado de verdade, que reflete a cor da capa e acende com o mouse
 - 🌗 **Tema claro, escuro ou automático** (segue o Windows), além de um estilo sólido
+- 📏 **Três tamanhos** de popup: pequeno, médio e grande
+- 🌐 **Português, inglês e espanhol** (ou o idioma do Windows)
+- 😀 **Nomes com emoji** e caracteres especiais aparecem certinho
 - 🎮 **Respeita tela cheia**: não aparece por cima de jogos, vídeos e apresentações (configurável)
 - ⚡ **Levíssimo**: ~10–13 MB de memória (Gerenciador de Tarefas) e ~0% de CPU parado, sem ficar consultando o Spotify
 - 🚀 **Inicia com o Windows** e fica quietinho no tray
@@ -50,7 +53,9 @@ Clique com o botão direito no ícone da nota musical:
 | **Estilo** | Liquid Glass ou Sólido |
 | **Tema** | Escuro, Claro ou Seguir o Windows |
 | **Posição** | Canto superior esquerdo ou direito |
+| **Tamanho** | Pequeno, Médio ou Grande |
 | **Duração** | 3, 5, 8 ou 12 segundos |
+| **Idioma** | Automático (Windows), Português, English ou Español |
 | **Aparecer sobre tela cheia** | Liga/desliga o popup durante jogos e vídeos |
 | **Iniciar com o Windows** | Abre junto com o sistema |
 | **Mostrar notificação** | Mostra a música atual de novo |
@@ -103,7 +108,7 @@ powershell -ExecutionPolicy Bypass -File build-installer.ps1   # gera dist\Spoti
 | Opção de linha de comando | Para quê |
 |---|---|
 | `--demo` | Mostra o popup com a música atual ao abrir |
-| `--sample` | Mostra uma música de exemplo (usada nas imagens deste README) |
+| `--sample ["título"]` | Mostra uma música de exemplo (usada nas imagens deste README); o título é opcional, bom para testar emoji |
 | `--show-menu` | Abre o menu do tray (usado nas imagens deste README) |
 
 As imagens de `docs/` são geradas por `tools/make-preview.ps1`.
@@ -119,6 +124,8 @@ src/
   ToastWindow.cs    o popup: geometria, Liquid Glass, animação
   Native.cs         chamadas do Windows (desfoque, cantos, tela cheia, DPI)
   Fx.cs             formas, nota musical, cor predominante da capa
+  TextLine.cs       texto com emoji (troca de fonte por trecho e corta com …)
+  Lang.cs           textos em português, inglês e espanhol
   MenuRenderer.cs   menu do tray claro/escuro
 installer/          script do Inno Setup
 tools/              ícone e geração das imagens do README

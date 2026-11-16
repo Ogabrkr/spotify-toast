@@ -24,6 +24,14 @@ public static class Shot {
   [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, int f);
   [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
   public struct POINT { public int X, Y; }
+  delegate bool EnumCb(IntPtr h, IntPtr l);
+  [DllImport("user32.dll")] static extern bool EnumWindows(EnumCb cb, IntPtr l);
+  [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr h);
+  [DllImport("user32.dll")] static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint f);
+  // põe as janelas visíveis do processo acima de tudo (outro app pode ter ficado por cima do fundo)
+  public static void Raise(int pid) {
+    EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p);
+      if (p == pid && IsWindowVisible(h)) SetWindowPos(h, new IntPtr(-1), 0, 0, 0, 0, 0x0013); return true; }, IntPtr.Zero); }
   public static int PidAt(int x, int y) { uint pid; GetWindowThreadProcessId(GetAncestor(WindowFromPoint(new POINT { X = x, Y = y }), 2), out pid); return (int)pid; } }
 "@
 
@@ -31,7 +39,7 @@ $settingsFile = Join-Path $env:APPDATA 'SpotifyToast\settings.json'
 New-Item -ItemType Directory -Force (Split-Path $settingsFile) | Out-Null
 $backup = if (Test-Path $settingsFile) { Get-Content $settingsFile -Raw } else { $null }
 function Set-Look([bool]$glass, [string]$theme, [int]$secs = 8) {
-    $json = @{ Glass = $glass; Theme = $theme; Position = 'left'; DurationSeconds = $secs; ShowInFullscreen = $true } | ConvertTo-Json
+    $json = @{ Glass = $glass; Theme = $theme; Position = 'left'; DurationSeconds = $secs; ShowInFullscreen = $true; Size = 'medium'; Language = 'pt' } | ConvertTo-Json
     [IO.File]::WriteAllText($settingsFile, $json)
 }
 # espera o popup cobrir o canto (a abertura do app varia muito: antivírus, memória)
@@ -44,7 +52,7 @@ function Wait-Popup([int]$timeoutMs = 20000) {
     }
     throw 'o popup não apareceu'
 }
-function Stop-App { Get-Process SpotifyToast -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 400 }
+function Stop-App { Get-Process SpotifyToast -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 400; if ($bd) { [Shot]::Raise($bd.Id) } }
 
 $bd = Start-Process powershell -ArgumentList '-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'backdrop.ps1') -PassThru -WindowStyle Hidden
 Start-Sleep 2
@@ -78,7 +86,7 @@ try {
     # 3) menu do tray
     Set-Look $true 'dark'
     Stop-App; Start-Process $exe -ArgumentList '--show-menu'; Wait-Popup; Start-Sleep -Milliseconds 400
-    [Shot]::Save(34, 34, 236, 236, (Join-Path $tmp 'menu.png'))
+    [Shot]::Save(34, 34, 236, 300, (Join-Path $tmp 'menu.png'))
 }
 finally {
     Stop-App

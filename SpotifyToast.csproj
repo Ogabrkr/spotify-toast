@@ -9,7 +9,7 @@
     <AssemblyName>SpotifyToast</AssemblyName>
     <RootNamespace>SpotifyToast</RootNamespace>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>1.2.1</Version>
+    <Version>1.3.0</Version>
     <Product>Spotify Toast</Product>
     <AssemblyTitle>Spotify Toast</AssemblyTitle>
     <Description>Mostra uma notificação com capa e nome da música quando o Spotify troca de faixa.</Description>

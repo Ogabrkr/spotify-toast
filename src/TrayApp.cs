@@ -15,8 +15,12 @@ internal sealed class TrayApp : ApplicationContext
     bool? iconForLightTaskbar;
     bool? menuDark;
 
-    readonly ToolStripMenuItem glassItem, solidItem, darkItem, lightItem, systemItem, leftItem, rightItem, fullscreenItem, startupItem;
+    readonly ToolStripMenuItem glassItem, solidItem, darkItem, lightItem, systemItem, leftItem, rightItem,
+        smallItem, mediumItem, largeItem, langSystemItem, ptItem, enItem, esItem,
+        fullscreenItem, startupItem, showItem, quitItem,
+        styleMenu, themeMenu, posMenu, sizeMenu, durMenu, langMenu;
     readonly (ToolStripMenuItem item, int secs)[] durationItems;
+    Lang? textsFor;
 
     public TrayApp(string[] args)
     {
@@ -29,38 +33,53 @@ internal sealed class TrayApp : ApplicationContext
         menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true, Padding = new Padding(0, 4, 0, 4) };
         var header = new ToolStripMenuItem("Spotify Toast") { Enabled = false, Font = new Font("Segoe UI Semibold", 9f) };
 
-        glassItem = Choice("Liquid Glass", () => settings.Glass = true);
-        solidItem = Choice("Sólido", () => settings.Glass = false);
-        var style = Sub("Estilo", glassItem, solidItem);
+        // os textos são preenchidos em ApplyTexts (mudam com o idioma)
+        glassItem = Choice(() => settings.Glass = true);
+        solidItem = Choice(() => settings.Glass = false);
+        styleMenu = Sub(glassItem, solidItem);
 
-        darkItem = Choice("Escuro", () => settings.Theme = "dark");
-        lightItem = Choice("Claro", () => settings.Theme = "light");
-        systemItem = Choice("Seguir o Windows", () => settings.Theme = "system");
-        var theme = Sub("Tema", darkItem, lightItem, systemItem);
+        darkItem = Choice(() => settings.Theme = "dark");
+        lightItem = Choice(() => settings.Theme = "light");
+        systemItem = Choice(() => settings.Theme = "system");
+        themeMenu = Sub(darkItem, lightItem, systemItem);
 
-        leftItem = Choice("Canto superior esquerdo", () => settings.Position = "left");
-        rightItem = Choice("Canto superior direito", () => settings.Position = "right");
-        var pos = Sub("Posição", leftItem, rightItem);
+        leftItem = Choice(() => settings.Position = "left");
+        rightItem = Choice(() => settings.Position = "right");
+        posMenu = Sub(leftItem, rightItem);
+
+        smallItem = Choice(() => settings.Size = "small");
+        mediumItem = Choice(() => settings.Size = "medium");
+        largeItem = Choice(() => settings.Size = "large");
+        sizeMenu = Sub(smallItem, mediumItem, largeItem);
 
         durationItems = new[] { 3, 5, 8, 12 }
-            .Select(n => (Choice($"{n} segundos", () => settings.DurationSeconds = n, preview: false), n)).ToArray();
-        var dur = Sub("Duração", durationItems.Select(d => d.item).ToArray());
+            .Select(n => (Choice(() => settings.DurationSeconds = n, preview: false), n)).ToArray();
+        durMenu = Sub(durationItems.Select(d => d.item).ToArray());
 
-        fullscreenItem = new ToolStripMenuItem("Aparecer sobre tela cheia", null, (_, _) =>
+        langSystemItem = Choice(() => settings.Language = "system");
+        // cada idioma aparece escrito nele mesmo
+        ptItem = Choice(() => settings.Language = "pt"); ptItem.Text = "Português";
+        enItem = Choice(() => settings.Language = "en"); enItem.Text = "English";
+        esItem = Choice(() => settings.Language = "es"); esItem.Text = "Español";
+        langMenu = Sub(langSystemItem, new ToolStripSeparator(), ptItem, enItem, esItem);
+
+        fullscreenItem = new ToolStripMenuItem("", null, (_, _) =>
         {
             settings.ShowInFullscreen = !settings.ShowInFullscreen;
             settings.Save();
         });
-        startupItem = new ToolStripMenuItem("Iniciar com o Windows", null, (_, _) => Startup.Set(!Startup.IsEnabled));
+        startupItem = new ToolStripMenuItem("", null, (_, _) => Startup.Set(!Startup.IsEnabled));
+        showItem = new ToolStripMenuItem("", null, (_, _) => Preview());
+        quitItem = new ToolStripMenuItem("", null, (_, _) => Quit());
 
         menu.Items.AddRange(new ToolStripItem[]
         {
             header, new ToolStripSeparator(),
-            style, theme, pos, dur, new ToolStripSeparator(),
+            styleMenu, themeMenu, posMenu, sizeMenu, durMenu, langMenu, new ToolStripSeparator(),
             fullscreenItem, startupItem, new ToolStripSeparator(),
-            new ToolStripMenuItem("Mostrar notificação", null, (_, _) => Preview()),
-            new ToolStripMenuItem("Fechar o app", null, (_, _) => Quit()),
+            showItem, quitItem,
         });
+        ApplyTexts();
         menu.Opening += (_, _) => SyncMenu();
         HookRoundCorners(menu);
 
@@ -79,13 +98,16 @@ internal sealed class TrayApp : ApplicationContext
         };
         _ = StartWatcher();
 
-        // --demo: mostra a música atual | --sample: música de exemplo (para prints do README)
+        // --demo: mostra a música atual | --sample ["título"]: música de exemplo (prints do README e testes)
         // --show-menu: abre o menu do tray num ponto fixo (para prints do README)
         if (args.Contains("--demo")) Delay(1500, Preview);
         if (args.Contains("--sample"))
             Delay(1200, () =>
             {
-                using var sample = new TrackInfo("Neon Coastline", "The Midnight Arcade", "", Fx.SampleCover(256));
+                // --sample "título": testa nomes com emoji, longos etc.
+                int i = Array.IndexOf(args, "--sample");
+                string title = i + 1 < args.Length && !args[i + 1].StartsWith("--") ? args[i + 1] : "Neon Coastline";
+                using var sample = new TrackInfo(title, "The Midnight Arcade", "", Fx.SampleCover(256));
                 toast.ShowTrack(sample, settings);
             });
         if (args.Contains("--show-menu"))
@@ -100,7 +122,7 @@ internal sealed class TrayApp : ApplicationContext
         try { await watcher.StartAsync(); }
         catch (Exception ex)
         {
-            tray.ShowBalloonTip(5000, "Spotify Toast", "Não consegui acessar o controle de mídia do Windows: " + ex.Message, ToolTipIcon.Warning);
+            tray.ShowBalloonTip(5000, "Spotify Toast", settings.Text.MediaError + ex.Message, ToolTipIcon.Warning);
         }
     }
 
@@ -137,12 +159,12 @@ internal sealed class TrayApp : ApplicationContext
         if (last != null) toast.ShowTrack(last, settings);
         else
         {
-            using var sample = new TrackInfo("Nenhuma música ainda", "Dê play no Spotify", "", null);
+            using var sample = new TrackInfo(settings.Text.NoTrackYet, settings.Text.PressPlay, "", null);
             toast.ShowTrack(sample, settings);
         }
     }
 
-    ToolStripMenuItem Choice(string text, Action apply, bool preview = true) => new(text, null, (_, _) =>
+    ToolStripMenuItem Choice(Action apply, bool preview = true) => new("", null, (_, _) =>
     {
         apply();
         settings.Save();
@@ -150,9 +172,9 @@ internal sealed class TrayApp : ApplicationContext
         if (preview) Preview();
     });
 
-    static ToolStripMenuItem Sub(string text, params ToolStripMenuItem[] children)
+    static ToolStripMenuItem Sub(params ToolStripItem[] children)
     {
-        var item = new ToolStripMenuItem(text);
+        var item = new ToolStripMenuItem();
         item.DropDownItems.AddRange(children);
         if (item.DropDown is ToolStripDropDownMenu dd) { dd.ShowImageMargin = false; dd.ShowCheckMargin = true; }
         HookRoundCorners(item.DropDown);
@@ -171,7 +193,15 @@ internal sealed class TrayApp : ApplicationContext
         systemItem.Checked = settings.Theme == "system";
         leftItem.Checked = settings.Position != "right";
         rightItem.Checked = settings.Position == "right";
+        smallItem.Checked = settings.Size == "small";
+        mediumItem.Checked = settings.Size is not ("small" or "large");
+        largeItem.Checked = settings.Size == "large";
         foreach (var (item, secs) in durationItems) item.Checked = settings.DurationSeconds == secs;
+        langSystemItem.Checked = settings.Language is not ("pt" or "en" or "es");
+        ptItem.Checked = settings.Language == "pt";
+        enItem.Checked = settings.Language == "en";
+        esItem.Checked = settings.Language == "es";
+        ApplyTexts();
         fullscreenItem.Checked = settings.ShowInFullscreen;
         startupItem.Checked = Startup.IsEnabled;
 
@@ -183,6 +213,22 @@ internal sealed class TrayApp : ApplicationContext
             ApplyRenderer(menu, renderer);
         }
         UpdateTrayIcon();
+    }
+
+    void ApplyTexts()
+    {
+        var t = settings.Text;
+        if (ReferenceEquals(textsFor, t)) return;
+        textsFor = t;
+        styleMenu.Text = t.Style; glassItem.Text = t.Glass; solidItem.Text = t.Solid;
+        themeMenu.Text = t.Theme; darkItem.Text = t.Dark; lightItem.Text = t.Light; systemItem.Text = t.FollowWindows;
+        posMenu.Text = t.Position; leftItem.Text = t.TopLeft; rightItem.Text = t.TopRight;
+        sizeMenu.Text = t.Size; smallItem.Text = t.Small; mediumItem.Text = t.Medium; largeItem.Text = t.Large;
+        durMenu.Text = t.Duration;
+        foreach (var (item, secs) in durationItems) item.Text = string.Format(t.SecondsFormat, secs);
+        langMenu.Text = t.Language; langSystemItem.Text = t.Automatic;
+        fullscreenItem.Text = t.ShowOverFullscreen; startupItem.Text = t.StartWithWindows;
+        showItem.Text = t.ShowNotification; quitItem.Text = t.Quit;
     }
 
     static void ApplyRenderer(ToolStripDropDown dd, ToolStripRenderer r)

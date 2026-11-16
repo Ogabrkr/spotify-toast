@@ -11,6 +11,17 @@ internal sealed class AppSettings
     public string Position { get; set; } = "left";   // left | right
     public int DurationSeconds { get; set; } = 5;
     public bool ShowInFullscreen { get; set; } = false;
+    public string Size { get; set; } = "medium";     // small | medium | large
+    public string Language { get; set; } = "system"; // system | pt | en | es
+
+    [JsonIgnore] public float SizeFactor => Size switch
+    {
+        "small" => 0.85f,
+        "large" => 1.25f,
+        _ => 1f,
+    };
+
+    [JsonIgnore] public Lang Text => Lang.For(Language);
 
     [JsonIgnore] public bool IsDark => Theme switch
     {
