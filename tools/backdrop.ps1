@@ -9,6 +9,8 @@ $form.StartPosition = 'Manual'
 $form.Location = New-Object System.Drawing.Point 0, 0
 $form.Size = New-Object System.Drawing.Size $W, $H
 $form.ShowInTaskbar = $false
+# sempre na frente, para as capturas não pegarem outras janelas (o popup fica acima por ser mostrado depois)
+$form.TopMost = $true
 $form.BackColor = [System.Drawing.Color]::FromArgb(18, 16, 40)
 
 $form.Add_Paint({
@@ -34,5 +36,14 @@ $form.Add_Paint({
     $pen = New-Object System.Drawing.Pen ([System.Drawing.Color]::FromArgb(70, 255, 255, 255)), 2
     for ($x = -200; $x -lt $W; $x += 38) { $g.DrawLine($pen, $x, 0, $x + 200, $H) }
 })
-$form.Add_Shown({ $form.Activate() })
+# o Windows não deixa um processo em segundo plano vir para a frente; SetWindowPos(TOPMOST) põe a
+# janela acima das outras do mesmo jeito que o popup faz (e ShowWindow desfaz o -WindowStyle Hidden)
+Add-Type -Name W -Namespace BD -MemberDefinition @'
+[DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
+[DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint f);
+'@
+$form.Add_Shown({
+    [BD.W]::ShowWindow($form.Handle, 5) | Out-Null
+    [BD.W]::SetWindowPos($form.Handle, [IntPtr](-1), 0, 0, 0, 0, 0x0003 -bor 0x0040) | Out-Null  # NOSIZE|NOMOVE|SHOWWINDOW
+})
 [System.Windows.Forms.Application]::Run($form)

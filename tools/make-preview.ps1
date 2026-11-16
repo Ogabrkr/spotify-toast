@@ -19,7 +19,12 @@ public static class Shot {
     using (var bmp = new Bitmap(w, h)) {
       using (var g = Graphics.FromImage(bmp)) { var dst = g.GetHdc(); var src = GetDC(IntPtr.Zero);
         BitBlt(dst, 0, 0, w, h, src, x, y, 0x00CC0020 | 0x40000000); ReleaseDC(IntPtr.Zero, src); g.ReleaseHdc(dst); }
-      bmp.Save(path); } } }
+      bmp.Save(path); } }
+  [DllImport("user32.dll")] static extern IntPtr WindowFromPoint(POINT p);
+  [DllImport("user32.dll")] static extern IntPtr GetAncestor(IntPtr h, int f);
+  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
+  public struct POINT { public int X, Y; }
+  public static int PidAt(int x, int y) { uint pid; GetWindowThreadProcessId(GetAncestor(WindowFromPoint(new POINT { X = x, Y = y }), 2), out pid); return (int)pid; } }
 "@
 
 $settingsFile = Join-Path $env:APPDATA 'SpotifyToast\settings.json'
@@ -28,6 +33,16 @@ $backup = if (Test-Path $settingsFile) { Get-Content $settingsFile -Raw } else {
 function Set-Look([bool]$glass, [string]$theme, [int]$secs = 8) {
     $json = @{ Glass = $glass; Theme = $theme; Position = 'left'; DurationSeconds = $secs; ShowInFullscreen = $true } | ConvertTo-Json
     [IO.File]::WriteAllText($settingsFile, $json)
+}
+# espera o popup cobrir o canto (a abertura do app varia muito: antivírus, memória)
+function Wait-Popup([int]$timeoutMs = 20000) {
+    $sw = [Diagnostics.Stopwatch]::StartNew()
+    while ($sw.ElapsedMilliseconds -lt $timeoutMs) {
+        $app = Get-Process SpotifyToast -ErrorAction SilentlyContinue
+        if ($app -and $app.Id -contains [Shot]::PidAt(200, 60)) { return }
+        Start-Sleep -Milliseconds 30
+    }
+    throw 'o popup não apareceu'
 }
 function Stop-App { Get-Process SpotifyToast -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Milliseconds 400 }
 
@@ -42,16 +57,19 @@ try {
     $looks = @(@($true, 'dark', 'glass-dark'), @($true, 'light', 'glass-light'), @($false, 'dark', 'solid-dark'), @($false, 'light', 'solid-light'))
     foreach ($l in $looks) {
         Set-Look $l[0] $l[1]
-        Stop-App; Start-Process $exe -ArgumentList '--sample'; Start-Sleep -Milliseconds 3600
+        Stop-App; Start-Process $exe -ArgumentList '--sample'; Wait-Popup; Start-Sleep -Milliseconds 900
         [Shot]::Save(0, 0, 410, 124, (Join-Path $tmp "$($l[2]).png"))
     }
 
     # 2) animação (entra, espera, sai)
     Set-Look $true 'dark' 2
+    # 1ª abertura só para descobrir quanto o app demora; a 2ª é gravada a partir de pouco antes disso
+    Stop-App; $sw = [Diagnostics.Stopwatch]::StartNew(); Start-Process $exe -ArgumentList '--sample'
+    Wait-Popup; $lead = [math]::Max(0, $sw.ElapsedMilliseconds - 900)
     Stop-App; Start-Process $exe -ArgumentList '--sample'
-    Start-Sleep -Milliseconds 1100
+    Start-Sleep -Milliseconds $lead
     $sw = [Diagnostics.Stopwatch]::StartNew(); $i = 0
-    while ($sw.ElapsedMilliseconds -lt 4200) {
+    while ($sw.ElapsedMilliseconds -lt 4600) {
         [Shot]::Save(0, 0, 410, 124, (Join-Path $tmp ('f{0:D4}.png' -f $i))); $i++
         Start-Sleep -Milliseconds 20
     }
@@ -59,7 +77,7 @@ try {
 
     # 3) menu do tray
     Set-Look $true 'dark'
-    Stop-App; Start-Process $exe -ArgumentList '--show-menu'; Start-Sleep -Milliseconds 3200
+    Stop-App; Start-Process $exe -ArgumentList '--show-menu'; Wait-Popup; Start-Sleep -Milliseconds 400
     [Shot]::Save(34, 34, 236, 236, (Join-Path $tmp 'menu.png'))
 }
 finally {
